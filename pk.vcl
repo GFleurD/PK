@@ -59,7 +59,7 @@ unhealthyInput x =
 
 unhealthyOutput : InputVector -> Bool
 -- safeOutput x = let y = normpk x in 0 <= (x ! conc) + ((y ! 0)/30) <= 30
-unhealthyOutput x = 10 <= ((normpk x) ! 0)/30 + (x ! conc) <= 50
+unhealthyOutput x = 10 <= ((normpk x) ! 0)/30 + (x ! conc) <= 60
 
 @property
 unhealthy: Bool

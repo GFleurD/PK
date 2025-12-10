@@ -8,6 +8,8 @@ import os
 import pandas as pd
 import idx2numpy
 import matplotlib.pyplot as plt
+import pickle
+
 
 # Folder where this file lives
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,6 +32,11 @@ idx2numpy.convert_to_file("y_vehicle.idx", y)
 
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
+
+# After: scaler = StandardScaler(); X_scaled = scaler.fit_transform(X)
+with open("scaler.pkl", "wb") as f:
+    pickle.dump(scaler, f)
+
 
 mean = scaler.mean_
 std = scaler.scale_
@@ -127,9 +134,16 @@ os.makedirs("nn_plots", exist_ok=True)
 plt.savefig("nn_plots/true_vs_predicted_dose.png")
 plt.show()
 
-# # Save onnx
 
-# dummy_input = torch.randn(1, 6, dtype=torch.float32)
+# after training
+torch.save(model.state_dict(), "pk_trained.pth")
+model = Net(input_size)
+model.load_state_dict(torch.load("pk_trained.pth"))
+model.eval()
+
+# Save onnx
+
+input_tensor = torch.rand(1, input_size, dtype=torch.float32)
 
 # torch.onnx.export(
 #     model,
@@ -137,13 +151,28 @@ plt.show()
 #     "pk.onnx",
 #     input_names=["input"],
 #     output_names=["output"],
-#     opset_version=18,       # safest with Vehicle/Marabou
+#     opset_version=18,
 #     do_constant_folding=True,
-#     export_params=True,     # <-- ensures all weights are stored in the file
+#     export_params=True,
+#     training=torch.onnx.TrainingMode.EVAL,   # makes sure weights are constant
+#     keep_initializers_as_inputs=False         # embed weights in the file
 # )
 
+torch.onnx.export(
+    model,                  # model to export
+    input_tensor,        # inputs of the model,
+    "pk.onnx",        # filename of the ONNX model
+    input_names=["input"],
+    output_names=["output"],  # Rename inputs for the ONNX model
+    opset_version=18,
+    do_constant_folding=True,
+    export_params=True,
+    external_data=False             
+)
 
-# print("ONNX model exported successfully!")
+
+
+print("ONNX model exported successfully!")
 
 
 

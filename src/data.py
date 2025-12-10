@@ -19,7 +19,7 @@ np.random.seed(42)
 # Parameters
 timesteps = 24.0*8      # total hours (8 days)
 dt = 1.0                # hours per timestep for concentration
-dt_small = 0.5          # small dt for Euler updates
+dt_small = 0.05          # small dt for Euler updates
 d_dt = 12.0             # hours between doses
 num_patients = 200
 V = 30                  # baseline volume of distribution
@@ -114,13 +114,14 @@ for p in range(num_patients):
         # Compute dose only at scheduled times
         if t_current >= next_dose_time:
             D = compute_dose(C, T, WBC, D_max)
+            all_X.append([C, T, WBC, age, weight, sex])
+            all_y.append(D)
             next_dose_time += d_dt
         else:
             D = 0.0
 
         # --- Store current state ---
-        all_X.append([C, T, WBC, age, weight, sex])
-        all_y.append(D)
+        
 
         # --- Update states at every small dt ---
         C = next_conc(C, dt_small, Vd_eff, D)  # use dt_small now
