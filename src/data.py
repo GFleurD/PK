@@ -15,7 +15,7 @@ VIS_DIR = os.path.join(THIS_DIR, "../data/visualisations")
 np.random.seed(42)
 
 # Parameters
-timesteps = 24.0*8      # total hours (8 days)
+timesteps = 24.0*4      # total hours (8 days)
 dt_small = 0.05          # small dt for Euler updates
 d_dt = 12.0             # hours between doses
 num_patients = 200
@@ -37,10 +37,10 @@ r_max_wbc = k_wbc_inf_max
 r_max_temp = k_t_inf_max
 T_norm = 37.0
 WBC_norm = 8.0
-k_t_hom = 0.021
-k_t_c = 0.0
-k_wbc_hom = 0.02
-k_wbc_c = 0.0
+k_t_hom = 0.03 
+k_t_c = 0.0025
+k_wbc_hom = 0.03
+k_wbc_c = 0.006
 
 # Scaled sigmoid function
 def scaled_sigmoid(x, x0, x1, r_max, alpha=1.0):
@@ -90,16 +90,19 @@ def k_t_inf_linear(T):
 
 # Dose function
 D_min, D_max = 0, 750
-def compute_dose(C, T, WBC, D_max=750):
-    T_thresh = 37.5
-    WBC_thresh = 8.0
-    T_max = 41.0
-    WBC_max = 20.0
-    temp_factor = max(0.0, (T - T_thresh) / (T_max - T_thresh))
-    wbc_factor = max(0.0, (WBC - WBC_thresh) / (WBC_max - WBC_thresh))
-    dose = D_max * (temp_factor + wbc_factor)
-    # dose = 600  # hardcoded for now
-    return np.clip(dose, 0.0, D_max)
+
+def compute_dose_linear(T, WBC, D_max=750, T_norm=37.0, WBC_norm=8.0, T_max=41.0, WBC_max=20.0, w_T=0.5, w_WBC=0.5):
+    # Only give dose if above normal
+    if T <= T_norm or WBC <= WBC_norm:
+        return 0.0
+    temp_contrib = max(0.0, (T - T_norm)/(T_max - T_norm))
+    wbc_contrib  = max(0.0, (WBC - WBC_norm)/(WBC_max - WBC_norm))
+    
+    # Weighted sum, capped at 1
+    dose_fraction = min(1.0, w_T*temp_contrib + w_WBC*wbc_contrib)
+    
+    return D_max * dose_fraction
+
 
 # --- Sigmoid verification plots (moved before simulation) ---
 WBC_range = np.linspace(4, 22, 200)
@@ -158,7 +161,7 @@ for p in range(num_patients):
 
         # Check dose event
         if abs(t_current - next_dose_time) < dt_small/2:
-            D = compute_dose(C, T, WBC)
+            D = compute_dose_linear(T, WBC, D_max=750, T_norm=37.0, WBC_norm=8.0, T_max=41.0, WBC_max=20.0, w_T=0.5, w_WBC=0.5)
             all_X_csv.append([C, T, WBC, age, weight, sex])
             all_y_csv.append(D)
             next_dose_time += d_dt
@@ -188,7 +191,7 @@ df_y_csv.to_csv(os.path.join(DATA_DIR, "dose_targets.csv"), index=False)
 all_X_full = np.array(all_X_full, dtype=np.float32)
 all_time_full = np.array(all_time_full, dtype=np.float32)
 
-n_queries = 2
+n_queries = 5
 patient_indices = np.random.choice(num_patients, n_queries, replace=False)
 rows_per_patient = len(all_time_full) // num_patients
 
