@@ -37089,25 +37089,25 @@
 /***/ })
 /******/ ]);
 //# sourceMappingURL=bundle.js.map </script></head><body>
-        <div class="lime top_div" id="top_divVZKQMRZKJ8VK6D0"></div>
+        <div class="lime top_div" id="top_divWPR93NO0HRXDWYO"></div>
         
         <script>
-        var top_div = d3.select('#top_divVZKQMRZKJ8VK6D0').classed('lime top_div', true);
+        var top_div = d3.select('#top_divWPR93NO0HRXDWYO').classed('lime top_div', true);
         
         
                     var pp_div = top_div.append('div')
                                         .classed('lime predicted_value', true);
                     var pp_svg = pp_div.append('svg').style('width', '100%');
-                    var pp = new lime.PredictedValue(pp_svg, 0.0, 0.0, 841.6743774414062);
+                    var pp = new lime.PredictedValue(pp_svg, 68.11463165283203, 0.0, 591.7001342773438);
                     
         var exp_div;
             var exp = new lime.Explanation(["negative", "positive"]);
         
             exp_div = top_div.append('div').classed('lime explanation', true);
-            exp.show([["-0.34 < T <= -0.25", -65.17351067249747], ["0.03 < WBC <= 0.03", -32.08404799363034], ["Sex <= -1.05", 1.6031920440298626], ["-0.42 < C <= -0.42", 1.4858714727171594], ["Weight <= -0.89", -1.0709070995980845], ["Age > 0.79", 0.9741475537804117]], 1, exp_div);
+            exp.show([["8.78 < WBC (10^9/L) <= 11.13", -23.64758285533395], ["37.17 < T (°C) <= 38.00", -18.733665651176988], ["Weight (kg) > 93.00", 9.318997881011645], ["1.13 < C (Conc) <= 3.72", -4.909967382929304], ["Sex (binary) <= 0.00", -4.083758906515241], ["Age (years) > 64.00", 0.6310031045924596]], 1, exp_div);
             
         var raw_div = top_div.append('div');
-            exp.show_raw_tabular([["T", "-0.26", -65.17351067249747], ["WBC", "0.03", -32.08404799363034], ["Sex", "-1.05", 1.6031920440298626], ["C", "-0.42", 1.4858714727171594], ["Weight", "-1.36", -1.0709070995980845], ["Age", "1.27", 0.9741475537804117]], 1, raw_div);
+            exp.show_raw_tabular([["WBC (10^9/L)", "9.25", -23.64758285533395], ["T (°C)", "37.32", -18.733665651176988], ["Weight (kg)", "97.54", 9.318997881011645], ["C (Conc)", "2.21", -4.909967382929304], ["Sex (binary)", "0.00", -4.083758906515241], ["Age (years)", "69.00", 0.6310031045924596]], 1, raw_div);
         
         </script>
         </body></html>

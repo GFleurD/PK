@@ -131,9 +131,15 @@ plt.plot([0, 1500], [0, 1500], 'r--', label='Ideal x=y')
 plt.legend()
 plt.tight_layout()
 
-os.makedirs("nn_plots", exist_ok=True)
-plt.savefig("nn_plots/true_vs_predicted_dose.png")
+# Make sure folder exists
+VIS_DIR = "/Users/fleurconway/Documents/Programming/F21ZK_Verification_and_Validation/Project_PK/data/visualisations"
+os.makedirs(VIS_DIR, exist_ok=True)
+
+# Save figure
+file_path_graphs = os.path.join(VIS_DIR, "true_vs_predicted_dose.png")
+plt.savefig(file_path_graphs)
 plt.show()
+
 
 
 # after training
