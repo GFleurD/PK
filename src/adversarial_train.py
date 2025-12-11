@@ -138,7 +138,7 @@ def main():
     for i in range(5):
         print(f"True y={y[i,0]:.2f}, orig pred={preds_orig[i,0]:.2f}, adv pred={preds_adv[i,0]:.2f}")
 
-    # --- Visualize ---
+    # --- Visualize PGD shift ---
     plt.figure(figsize=(6,6))
     plt.scatter(preds_orig, preds_adv, alpha=0.4)
     plt.xlabel("Original Prediction")
@@ -146,7 +146,7 @@ def main():
     plt.title("PGD Shift in Predictions")
     plt.tight_layout()
     plt.savefig(os.path.join(VIS_DIR, "pgd_shift.png"))
-    print("\nSaved PGD scatter plot.\n")
+    print("Saved PGD scatter plot.\n")
 
     # --- Adversarial Training ---
     adv_model = Net(input_size=X_t.shape[1])
@@ -169,12 +169,30 @@ def main():
         output_names=["output"],
         opset_version=18,
         do_constant_folding=True,
-        export_params=True,
-        external_data=False        
+        export_params=True
     )
 
-    print(f"Adversarially trained model saved as:\n - {adv_model_path}\n - {onnx_path}")
-    print("\nDone!\n")
+    print(f"Adversarially trained model saved as:\n - {adv_model_path}\n - {onnx_path}\n")
+
+    # --- Visualize True vs Original vs Adversarially Trained Predictions ---
+    
+    adv_model.eval()
+    with torch.no_grad():
+        preds_adv_train = adv_model(X_t).numpy()
+
+    y_flat = y.flatten()  # Flatten to 1D
+    plt.figure(figsize=(6,6))
+    plt.scatter(y_flat, preds_orig, alpha=0.4, label="Original Model")
+    plt.scatter(y_flat, preds_adv_train, alpha=0.4, label="Adversarially Trained Model")
+    plt.plot([0, max(y_flat)], [0, max(y_flat)], 'r--', label="Ideal x=y")
+    plt.xlabel("True Dose")
+    plt.ylabel("Predicted Dose")
+    plt.title("True vs Model Predictions")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(VIS_DIR, "true_vs_adv_vs_orig.png"))
+    print("Saved True vs Original vs Adversarial predictions plot.\nDone!\n")
+
 
 
 if __name__ == "__main__":
