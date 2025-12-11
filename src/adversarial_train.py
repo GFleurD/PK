@@ -169,7 +169,8 @@ def main():
         output_names=["output"],
         opset_version=18,
         do_constant_folding=True,
-        export_params=True
+        export_params=True,
+        external_data=False 
     )
 
     print(f"Adversarially trained model saved as:\n - {adv_model_path}\n - {onnx_path}\n")
@@ -193,7 +194,108 @@ def main():
     plt.savefig(os.path.join(VIS_DIR, "true_vs_adv_vs_orig.png"))
     print("Saved True vs Original vs Adversarial predictions plot.\nDone!\n")
 
+    # -----------------------------
+    # Lipschitz estimation
+    # -----------------------------
+    def estimate_lipschitz(model):
+        """
+        Rough upper bound on the Lipschitz constant of a feedforward ReLU network.
+        Multiplies spectral norms of linear layers; ReLU slope <= 1.
+        """
+        L = 1.0
+        for layer in model.model:
+            if isinstance(layer, nn.Linear):
+                weight = layer.weight.detach()
+                # Spectral norm (largest singular value)
+                weight_norm = torch.linalg.norm(weight, 2)
+                L *= weight_norm.item()
+        return L
+
+    # After loading your original model:
+    L_orig = estimate_lipschitz(model)
+    print(f"Estimated Lipschitz constant of original model: {L_orig:.4f}")
+
+    # After adversarial training:
+    adv_model.eval()
+    L_adv = estimate_lipschitz(adv_model)
+    print(f"Estimated Lipschitz constant of adversarially trained model: {L_adv:.4f}")
+
+    def empirical_lipschitz_hyperrect(model, X, eps_scaled):
+        """
+        Estimate empirical Lipschitz over variable eps per feature.
+        """
+        X_torch = torch.tensor(X, dtype=torch.float32)
+        X_adv = X_torch.clone()
+        
+        # Apply per-feature perturbation: uniform random in [-eps_i, eps_i]
+        for i, eps_i in eps_scaled.items():
+            noise = (2*torch.rand(X_torch[:,i].shape)-1) * eps_i
+            X_adv[:, i] += noise
+
+        with torch.no_grad():
+            y_orig = model(X_torch)
+            y_pert = model(X_adv)
+
+        delta_y = (y_pert - y_orig).abs()
+        delta_x = torch.sqrt(((X_adv - X_torch)**2).sum(dim=1))
+        lipschitz_est = delta_y.squeeze() / delta_x
+
+        return lipschitz_est.mean().item(), lipschitz_est.max().item()
+
+
+    mean_L_orig, max_L_orig = empirical_lipschitz_hyperrect(model, X_scaled, eps_scaled)
+    mean_L_adv, max_L_adv   = empirical_lipschitz_hyperrect(adv_model, X_scaled, eps_scaled)
+
+    print(f"Original model → mean L ≈ {mean_L_orig:.2f}, max L ≈ {max_L_orig:.2f}")
+    print(f"Adversarial model → mean L ≈ {mean_L_adv:.2f}, max L ≈ {max_L_adv:.2f}")
+
+    # -----------------------------
+    # Per-feature Lipschitz contributions
+    # -----------------------------
+    def per_feature_lipschitz(model, X, eps_scaled):
+        """
+        Estimate the empirical Lipschitz per feature.
+        Returns a dict {feature_idx: mean contribution}.
+        """
+        X_torch = torch.tensor(X, dtype=torch.float32)
+        contributions = {}
+
+        with torch.no_grad():
+            y_orig = model(X_torch)
+
+            for i, eps_i in eps_scaled.items():
+                X_pert = X_torch.clone()
+                noise = (2*torch.rand(X_torch[:,i].shape)-1) * eps_i
+                X_pert[:, i] += noise
+
+                y_pert = model(X_pert)
+                delta_y = (y_pert - y_orig).abs().squeeze()
+                delta_x = torch.abs(X_pert[:,i] - X_torch[:,i])  # L1 along this feature
+                contributions[i] = (delta_y / delta_x).mean().item()
+
+        return contributions
+
+    # --- Compute per-feature Lipschitz ---
+    feature_L = per_feature_lipschitz(adv_model, X_scaled, eps_scaled)
+
+    # --- Plot ---
+    plt.figure(figsize=(6,4))
+    plt.bar([str(i) for i in feature_L.keys()], feature_L.values(), alpha=0.7)
+    plt.xlabel("Feature index")
+    plt.ylabel("Mean Lipschitz contribution")
+    plt.title("Per-feature Sensitivity of Adversarially Trained Model")
+    plt.tight_layout()
+    plt.savefig(os.path.join(VIS_DIR, "per_feature_lipschitz.png"))
+    print("Saved per-feature Lipschitz plot.\n")
+
+
+
+
+
 
 
 if __name__ == "__main__":
     main()
+    
+
+
