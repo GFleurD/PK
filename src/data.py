@@ -1,10 +1,8 @@
-#imports
+# imports
 import math
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 import os
 
 # Folder where this file lives
@@ -18,7 +16,6 @@ np.random.seed(42)
 
 # Parameters
 timesteps = 24.0*8      # total hours (8 days)
-dt = 1.0                # hours per timestep for concentration
 dt_small = 0.05          # small dt for Euler updates
 d_dt = 12.0             # hours between doses
 num_patients = 200
@@ -29,158 +26,217 @@ t_half = 8.0 #hours
 k_dose = np.log(2)/t_half
 
 def next_conc(C, dt, V, D):
-    return (C+(D/V))*(np.exp(-k_dose*dt))
+    return (C + (D / V)) * np.exp(-k_dose * dt)
 
-# Pharmacodynamics (Temperature)
+# Pharmacodynamics: Scaled Sigmoids for Temperature and WBC
+alpha_wbc = 1.5      # steepness for WBC
+alpha_temp = 3.0     # steepness for Temp
 k_t_inf_max = 0.02
-r_t = 3.0
+k_wbc_inf_max = 0.03
+r_max_wbc = k_wbc_inf_max
+r_max_temp = k_t_inf_max
 T_norm = 37.0
-k_t_hom = 0.04
-k_t_c = 0.005
+WBC_norm = 8.0
+k_t_hom = 0.021
+k_t_c = 0.0
+k_wbc_hom = 0.02
+k_wbc_c = 0.0
 
-def k_t_inf_sigmoid(T):
-    return k_t_inf_max * (1/(1 + np.exp(-r_t*(T-T_norm))))
+# Scaled sigmoid function
+def scaled_sigmoid(x, x0, x1, r_max, alpha=1.0):
+    x_center = (x0 + x1) / 2
+    L = lambda x_: 1 / (1 + np.exp(-alpha * (x_ - x_center)))
+    return r_max * (L(x) - L(x0)) / (L(x1) - L(x0))
 
+# WBC and Temp scaling
+def k_wbc_inf_scaled(WBC):
+    return scaled_sigmoid(WBC, x0=12, x1=20, r_max=r_max_wbc, alpha=alpha_wbc)
+
+def k_t_inf_scaled(T):
+    return scaled_sigmoid(T, x0=37.5, x1=41, r_max=r_max_temp, alpha=alpha_temp)
+
+# Update functions
 def next_temp(T, C, dt_small):
-    k_tinf = k_t_inf_sigmoid(T)
+    k_tinf = k_t_inf_scaled(T)
     return T + dt_small * (k_tinf - k_t_c*C - k_t_hom*(T-T_norm))
 
-# Pharmacodynamics (WBC)
-k_wbc_inf_max = 0.03
-r_wbc = 0.7
-WBC_norm = 8.0
-k_wbc_hom = 0.12
-k_wbc_c = 0.06
-
-def k_wbc_inf_sigmoid(WBC):
-    return k_wbc_inf_max * (1/(1 + np.exp(-r_wbc*(WBC-WBC_norm))))
-
 def next_WBC(WBC, C, dt_small):
-    k_wbc_inf = k_wbc_inf_sigmoid(WBC)
+    k_wbc_inf = k_wbc_inf_scaled(WBC)
     return WBC + dt_small * (k_wbc_inf - k_wbc_c*C - k_wbc_hom*(WBC-WBC_norm))
 
-#  Dose bounds
+# Piecewise linear approximations
+def sigmoid_inflection_bounds(x0, x1, alpha):
+    x_center = (x0 + x1)/2
+    dx = 2.0 / alpha
+    return x_center - dx, x_center + dx
+
+def k_wbc_inf_linear(WBC):
+    x0, x1 = sigmoid_inflection_bounds(12, 20, alpha_wbc)
+    if WBC <= x0:
+        return 0.0
+    elif WBC >= x1:
+        return r_max_wbc
+    else:
+        return r_max_wbc / (x1 - x0) * (WBC - x0)
+
+def k_t_inf_linear(T):
+    x0, x1 = sigmoid_inflection_bounds(37.5, 41, alpha_temp)
+    if T <= x0:
+        return 0.0
+    elif T >= x1:
+        return r_max_temp
+    else:
+        return r_max_temp / (x1 - x0) * (T - x0)
+
+# Dose function
 D_min, D_max = 0, 750
-
 def compute_dose(C, T, WBC, D_max=750):
-    """
-    Compute dose based on temperature and WBC thresholds.
-    Only dose if either value exceeds healthy range.
-    Dose is proportional to how far values are above thresholds.
-    """
-    # Thresholds
     T_thresh = 37.5
-    WBC_thresh = 12
-    T_max = 40.0       # Max clinically relevant temp
-    WBC_max = 20.0     # Max clinically relevant WBC
-
-    # Only consider values above thresholds
+    WBC_thresh = 8.0
+    T_max = 41.0
+    WBC_max = 20.0
     temp_factor = max(0.0, (T - T_thresh) / (T_max - T_thresh))
     wbc_factor = max(0.0, (WBC - WBC_thresh) / (WBC_max - WBC_thresh))
-
-    # Combine factors (simple sum or weighted sum)
     dose = D_max * (temp_factor + wbc_factor)
-    dose = np.clip(dose, 0.0, D_max)
-    return dose
+    # dose = 600  # hardcoded for now
+    return np.clip(dose, 0.0, D_max)
 
-# Example: smooth sigmoid scaling
-def compute_dose_smooth(T, WBC, D_max=1500, T_thresh=37.5, WBC_thresh=12, alpha=1.0):
-    temp_factor = 1 / (1 + np.exp(-alpha * (T - T_thresh)))
-    wbc_factor = 1 / (1 + np.exp(-alpha * (WBC - WBC_thresh)))
-    dose = D_max * (temp_factor + wbc_factor) / 2  # normalize sum to stay <= D_max
-    return dose
+# --- Sigmoid verification plots (moved before simulation) ---
+WBC_range = np.linspace(4, 22, 200)
+T_range = np.linspace(36, 42, 200)
 
+plt.figure(figsize=(12,5))
 
-# begin storage
-all_X = []
-all_y = []
+plt.subplot(1,2,1)
+plt.plot(WBC_range, [k_wbc_inf_scaled(w) for w in WBC_range], label='Scaled Sigmoid')
+plt.plot(WBC_range, [k_wbc_inf_linear(w) for w in WBC_range], 'r--', label='Piecewise Linear')
+plt.xlabel('WBC')
+plt.ylabel('k_wbc_inf')
+plt.title('WBC Scaling')
+plt.legend()
+
+plt.subplot(1,2,2)
+plt.plot(T_range, [k_t_inf_scaled(t) for t in T_range], label='Scaled Sigmoid')
+plt.plot(T_range, [k_t_inf_linear(t) for t in T_range], 'r--', label='Piecewise Linear')
+plt.xlabel('Temperature (°C)')
+plt.ylabel('k_t_inf')
+plt.title('Temperature Scaling')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
+
+# --- Simulation ---
+all_X_csv = []       # for CSV (dose times only)
+all_y_csv = []
+
+all_X_full = []      # for plotting (every dt_small)
+all_time_full = []
 
 for p in range(num_patients):
-    # Patient covariates
     age = np.random.randint(18, 90)
     weight = np.random.uniform(50, 100)
-    sex = np.random.choice([0,1])  # 0=male, 1=female
-    Vd_eff = V * (weight / 70)  # scale with body weight
+    sex = np.random.choice([0,1])
+    Vd_eff = V * (weight / 70)
 
-    # Initial sick state
     C = 0.0
     T = np.random.uniform(38.5, 40.0)
     WBC = np.random.uniform(12, 20)
-    D = 0.0  # initial dose
+    D = 0.0
     t_current = 0.0
     next_dose_time = 0.0
 
-    while t_current < timesteps:
-        # Compute dose only at scheduled times
-        if t_current >= next_dose_time:
-            D = compute_dose(C, T, WBC, D_max)
-            all_X.append([C, T, WBC, age, weight, sex])
-            all_y.append(D)
+    iter_limit = int(timesteps / dt_small) + 1000
+    iter_count = 0
+
+    while t_current < timesteps and iter_count < iter_limit:
+        iter_count += 1
+
+        # Store full state for plotting
+        all_X_full.append([C, T, WBC])
+        all_time_full.append(t_current)
+
+        # Check dose event
+        if abs(t_current - next_dose_time) < dt_small/2:
+            D = compute_dose(C, T, WBC)
+            all_X_csv.append([C, T, WBC, age, weight, sex])
+            all_y_csv.append(D)
             next_dose_time += d_dt
         else:
             D = 0.0
 
-        # --- Store current state ---
-        
-
-        # --- Update states at every small dt ---
-        C = next_conc(C, dt_small, Vd_eff, D)  # use dt_small now
+        # Update dynamics
+        C = next_conc(C, dt_small, Vd_eff, D)
         T = next_temp(T, C, dt_small)
         WBC = next_WBC(WBC, C, dt_small)
 
         t_current += dt_small
 
-# Convert to arrays
-X = np.array(all_X, dtype=np.float32)
-y = np.array(all_y, dtype=np.float32)
+    if iter_count >= iter_limit:
+        print(f"Warning: patient {p} loop reached iter limit.")
 
-# --- Save CSVs ---
-df_X = pd.DataFrame(X, columns=['C','T','WBC','Age','Weight','Sex'])
-df_y = pd.DataFrame(y, columns=['Dose'])
+# --- Save CSV for training (dose times only) ---
+X_csv = np.array(all_X_csv, dtype=np.float32)
+y_csv = np.array(all_y_csv, dtype=np.float32)
+df_X_csv = pd.DataFrame(X_csv, columns=['C','T','WBC','Age','Weight','Sex'])
+df_y_csv = pd.DataFrame(y_csv, columns=['Dose'])
+os.makedirs(DATA_DIR, exist_ok=True)
+df_X_csv.to_csv(os.path.join(DATA_DIR, "patient_states.csv"), index=False)
+df_y_csv.to_csv(os.path.join(DATA_DIR, "dose_targets.csv"), index=False)
 
-file_path_states= os.path.join(DATA_DIR, "patient_states.csv")
-file_path_doses = os.path.join(DATA_DIR, "dose_targets.csv")
-df_X.to_csv(file_path_states, index=False)
-df_y.to_csv(file_path_doses, index=False)
+# --- Plot examples using all dt_small points ---
+all_X_full = np.array(all_X_full, dtype=np.float32)
+all_time_full = np.array(all_time_full, dtype=np.float32)
 
-# After generating X and y
-rows_per_patient = len(X) // num_patients
-X_reshaped = X.reshape(num_patients, rows_per_patient, -1)
-y_reshaped = y.reshape(num_patients, rows_per_patient)
+n_queries = 2
+patient_indices = np.random.choice(num_patients, n_queries, replace=False)
+rows_per_patient = len(all_time_full) // num_patients
 
+for p in patient_indices:
+    start_idx = p * rows_per_patient
+    end_idx = (p+1) * rows_per_patient
+    t_vec = all_time_full[start_idx:end_idx]
+    states = all_X_full[start_idx:end_idx]
 
-# Plot
+    # Dose indices for scatter (still only every 12h)
+    dose_indices = np.arange(0, len(t_vec), int(d_dt/dt_small))
+    dose_times = t_vec[dose_indices]
 
-n_queries = 5
-random_indices = np.random.choice(len(X_reshaped), size=n_queries, replace=False)
-for p in random_indices:
     plt.figure(figsize=(16,4))
-    
+
+    # Temperature
     plt.subplot(1,4,1)
-    plt.plot(X_reshaped[p,:,1], label='Temp')
+    plt.plot(t_vec, states[:,1], label='Temp')
     plt.axhline(T_norm, color='g', linestyle='--')
-    plt.title(f'Patient {p+1} Temperature')
+    plt.title(f'Patient {p+1} Temp')
+    plt.xlabel('Time (hours)')
+    plt.ylabel('°C')
     plt.legend()
-    
+
+    # WBC
     plt.subplot(1,4,2)
-    plt.plot(X_reshaped[p,:,2], label='WBC')
+    plt.plot(t_vec, states[:,2], label='WBC')
     plt.axhline(WBC_norm, color='g', linestyle='--')
     plt.title(f'Patient {p+1} WBC')
+    plt.xlabel('Time (hours)')
+    plt.ylabel('10^9/L')
     plt.legend()
-    
-    plt.subplot(1,4,3)
-    plt.plot(X_reshaped[p,:,0], label='Drug Conc (C)')
-    plt.title(f'Patient {p+1} Drug Concentration')
-    plt.legend()
-    
-    plt.subplot(1,4,4)
-    plt.plot(y_reshaped[p,:], label='Dose')
-    plt.title(f'Patient {p+1} Dose')
-    plt.legend()
-    
-    plt.tight_layout()
-    title = f'Patient {p+1}'
-    file_path_toydata = os.path.join(VIS_DIR, f"{title}.png")
-    plt.savefig(file_path_toydata, dpi=300, bbox_inches='tight')
-    plt.show()
 
+    # Drug concentration
+    plt.subplot(1,4,3)
+    plt.plot(t_vec, states[:,0], label='C', color='purple')
+    plt.title(f'Patient {p+1} Drug Conc')
+    plt.xlabel('Time (hours)')
+    plt.ylabel('Conc')
+    plt.legend()
+
+    # Dose scatter at 12 h intervals
+    plt.subplot(1,4,4)
+    plt.scatter(dose_times, y_csv[p*dose_indices.size:(p+1)*dose_indices.size], color='r', label='Dose')
+    plt.title(f'Patient {p+1} Dose')
+    plt.xlabel('Time (hours)')
+    plt.ylabel('mg')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()

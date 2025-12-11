@@ -57,6 +57,7 @@ y_test  = torch.tensor(y_test,  dtype=torch.float32)
 # PyTorch model
 # -----------------------------
 input_size = X_train.shape[1]
+print("X_train_shape:", X_train.shape[1])
 
 class Net(nn.Module):
     def __init__(self, input_size):
