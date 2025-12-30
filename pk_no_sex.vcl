@@ -28,7 +28,7 @@ normpk x = pk (normalise x)
 safeInput : InputVector -> Bool
 safeInput x = 
     0 <= x ! conc <= 30 and
-    36.5 <= x ! temp <= 40 and -- temps from dummy data based on a person being sick
+    37.5 <= x ! temp <= 40 and -- temps from dummy data based on a person being sick
     7.5 <= x ! wbc <= 20 and
     18 <= x ! age <= 90 and
     50 <= x ! weight <= 100
@@ -41,6 +41,10 @@ safeOutput x = -1 <= (((normpk x) ! 0)/30) + (x ! conc) <= 60
 @property
 safe: Bool
 safe = forall x . safeInput x => safeOutput x
+
+@property
+valid: Bool
+valid = forall x. safeInput x => (0 <= (normpk x) ! 0 )
 
 ---------
 
