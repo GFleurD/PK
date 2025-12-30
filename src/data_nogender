@@ -92,19 +92,16 @@ def k_t_inf_linear(T):
 D_min, D_max = 0, 750
 
 def compute_dose_linear(T, WBC, D_max=750, T_norm=37.0, WBC_norm=8.0, T_max=41.0, WBC_max=20.0, w_T=0.5, w_WBC=0.5):
-    # Only give dose if above normal
     if T <= T_norm or WBC <= WBC_norm:
         return 0.0
     temp_contrib = max(0.0, (T - T_norm)/(T_max - T_norm))
     wbc_contrib  = max(0.0, (WBC - WBC_norm)/(WBC_max - WBC_norm))
     
-    # Weighted sum, capped at 1
     dose_fraction = min(1.0, w_T*temp_contrib + w_WBC*wbc_contrib)
-    
     return D_max * dose_fraction
 
 
-# --- Sigmoid verification plots (moved before simulation) ---
+# --- Sigmoid verification plots ---
 WBC_range = np.linspace(4, 22, 200)
 T_range = np.linspace(36, 42, 200)
 
@@ -127,7 +124,7 @@ plt.title('Temperature Scaling')
 plt.legend()
 
 plt.tight_layout()
-plt.savefig(os.path.join(VIS_DIR, "wbc_temp_sigmoids.png"))
+plt.savefig(os.path.join(VIS_DIR, "no_sex_wbc_temp_sigmoids.png"))
 plt.show()
 
 # --- Simulation ---
@@ -140,7 +137,6 @@ all_time_full = []
 for p in range(num_patients):
     age = np.random.randint(18, 90)
     weight = np.random.uniform(50, 100)
-    sex = np.random.choice([0,1])
     Vd_eff = V * (weight / 70)
 
     C = 0.0
@@ -156,20 +152,17 @@ for p in range(num_patients):
     while t_current < timesteps and iter_count < iter_limit:
         iter_count += 1
 
-        # Store full state for plotting
         all_X_full.append([C, T, WBC])
         all_time_full.append(t_current)
 
-        # Check dose event
         if abs(t_current - next_dose_time) < dt_small/2:
             D = compute_dose_linear(T, WBC, D_max=750, T_norm=37.0, WBC_norm=8.0, T_max=41.0, WBC_max=20.0, w_T=0.5, w_WBC=0.5)
-            all_X_csv.append([C, T, WBC, age, weight, sex])
+            all_X_csv.append([C, T, WBC, age, weight])
             all_y_csv.append(D)
             next_dose_time += d_dt
         else:
             D = 0.0
 
-        # Update dynamics
         C = next_conc(C, dt_small, Vd_eff, D)
         T = next_temp(T, C, dt_small)
         WBC = next_WBC(WBC, C, dt_small)
@@ -179,16 +172,16 @@ for p in range(num_patients):
     if iter_count >= iter_limit:
         print(f"Warning: patient {p} loop reached iter limit.")
 
-# --- Save CSV for training (dose times only) ---
+# --- Save CSV for training ---
 X_csv = np.array(all_X_csv, dtype=np.float32)
 y_csv = np.array(all_y_csv, dtype=np.float32)
-df_X_csv = pd.DataFrame(X_csv, columns=['C','T','WBC','Age','Weight','Sex'])
+df_X_csv = pd.DataFrame(X_csv, columns=['C','T','WBC','Age','Weight'])
 df_y_csv = pd.DataFrame(y_csv, columns=['Dose'])
 os.makedirs(DATA_DIR, exist_ok=True)
-df_X_csv.to_csv(os.path.join(DATA_DIR, "patient_states.csv"), index=False)
-df_y_csv.to_csv(os.path.join(DATA_DIR, "dose_targets.csv"), index=False)
+df_X_csv.to_csv(os.path.join(DATA_DIR, "patient_states_no_sex.csv"), index=False)
+df_y_csv.to_csv(os.path.join(DATA_DIR, "dose_targets_no_sex.csv"), index=False)
 
-# --- Plot examples using all dt_small points ---
+# --- Plot examples ---
 all_X_full = np.array(all_X_full, dtype=np.float32)
 all_time_full = np.array(all_time_full, dtype=np.float32)
 
@@ -202,13 +195,11 @@ for p in patient_indices:
     t_vec = all_time_full[start_idx:end_idx]
     states = all_X_full[start_idx:end_idx]
 
-    # Dose indices for scatter (still only every 12h)
     dose_indices = np.arange(0, len(t_vec), int(d_dt/dt_small))
     dose_times = t_vec[dose_indices]  
 
     plt.figure(figsize=(16,4))
 
-    # Temperature
     plt.subplot(1,4,1)
     plt.plot(t_vec, states[:,1], label='Temp')
     plt.axhline(T_norm, color='g', linestyle='--')
@@ -217,7 +208,6 @@ for p in patient_indices:
     plt.ylabel('°C')
     plt.legend()
 
-    # WBC
     plt.subplot(1,4,2)
     plt.plot(t_vec, states[:,2], label='WBC')
     plt.axhline(WBC_norm, color='g', linestyle='--')
@@ -226,7 +216,6 @@ for p in patient_indices:
     plt.ylabel('10^9/L')
     plt.legend()
 
-    # Drug concentration
     plt.subplot(1,4,3)
     plt.plot(t_vec, states[:,0], label='C', color='purple')
     plt.title(f'Patient {p+1} Drug Conc')
@@ -234,7 +223,6 @@ for p in patient_indices:
     plt.ylabel('Conc')
     plt.legend()
 
-    # Dose scatter at 12 h intervals
     plt.subplot(1,4,4)
     plt.scatter(dose_times, y_csv[p*dose_indices.size:(p+1)*dose_indices.size], color='r', label='Dose')
     plt.title(f'Patient {p+1} Dose')
@@ -243,5 +231,5 @@ for p in patient_indices:
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig(os.path.join(VIS_DIR, f"Patient {p+1}.png"))
+    plt.savefig(os.path.join(VIS_DIR, f"No_Sex_Patient {p+1}.png"))
     plt.show()
