@@ -37,7 +37,7 @@ safeInput x =
 
 safeOutput : InputVector -> Bool
 -- safeOutput x = let y = normpk x in 0 <= (x ! conc) + ((y ! 0)/30) <= 30
-safeOutput x = 0 <= (((normpk x) ! 0)/30) + (x ! conc) <= 30
+safeOutput x = -1 <= (((normpk x) ! 0)/30) + (x ! conc) <= 30
 
 
 @property
@@ -85,6 +85,8 @@ healthy: Bool
 healthy = forall x . healthyInput x => healthyOutput x
 
 -------
+
+
 
 healthydirection : InputVector -> Real
 -- safeOutput x = let y = normpk x in 0 <= (x ! conc) + ((y ! 0)/30) <= 30

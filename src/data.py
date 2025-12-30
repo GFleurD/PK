@@ -127,6 +127,7 @@ plt.title('Temperature Scaling')
 plt.legend()
 
 plt.tight_layout()
+plt.savefig(os.path.join(VIS_DIR, "wbc_temp_sigmoids.png"))
 plt.show()
 
 # --- Simulation ---
@@ -242,4 +243,5 @@ for p in patient_indices:
     plt.legend()
 
     plt.tight_layout()
+    plt.savefig(os.path.join(VIS_DIR, f"Patient {p+1}.png"))
     plt.show()

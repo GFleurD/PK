@@ -125,7 +125,7 @@ def main():
     print("Loaded model, scaler, and data successfully.\n")
 
     # --- Scale epsilons ---
-    raw_eps_dict = {0:0.1, 1:0.05, 2:0.05, 3:0.5, 4:0.0, 5:1.5}
+    raw_eps_dict = {0:0.1, 1:0.05, 2:0.05, 3:0.5, 4:1.5, 5:0}
     eps_scaled = {i: raw_eps_dict[i]/scaler.scale_[i] for i in raw_eps_dict}
 
     # --- PGD Evaluation ---
