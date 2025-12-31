@@ -116,7 +116,7 @@ if __name__ == "__main__":
     DATA_DIR = os.path.join(THIS_DIR, "../data/csv")
 
     run_evaluation(
-        model_path=os.path.join(THIS_DIR, "../pk_trained_no_sex.pth"),
+        model_path=os.path.join(THIS_DIR, "../pk_adv_dl2_convex_no_sex.pth"),
         scaler_path=os.path.join(THIS_DIR, "../scaler.pkl"),
         states_csv=os.path.join(DATA_DIR, "patient_states_no_sex.csv"),
         doses_csv=os.path.join(DATA_DIR, "dose_targets_no_sex.csv")

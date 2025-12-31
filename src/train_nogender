@@ -127,7 +127,7 @@ plt.scatter(y_test, y_pred_np, alpha=0.5)
 plt.xlabel("True Dose")
 plt.ylabel("Predicted Dose")
 plt.title("NN Controller: True vs Predicted Dose")
-plt.plot([0, 1500], [0, 1500], 'r--', label='Ideal x=y')
+plt.plot([0, 750], [0, 750], 'r--', label='Ideal x=y')
 plt.legend()
 plt.tight_layout()
 

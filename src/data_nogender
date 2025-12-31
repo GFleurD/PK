@@ -19,7 +19,7 @@ timesteps = 24.0*4      # total hours (8 days)
 dt_small = 0.05          # small dt for Euler updates
 d_dt = 12.0             # hours between doses
 num_patients = 200
-V = 30                  # baseline volume of distribution
+V = 50                  # baseline volume of distribution
 
 # Pharmacokinetics
 t_half = 8.0 #hours

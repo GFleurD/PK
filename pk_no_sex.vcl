@@ -27,32 +27,24 @@ normpk x = pk (normalise x)
 
 safeInput : InputVector -> Bool
 safeInput x = 
-    0 <= x ! conc <= 30 and
-    37.5 <= x ! temp <= 40 and -- temps from dummy data based on a person being sick
+    0 <= x ! conc <= 40 and
+    36.5 <= x ! temp <= 40 and -- temps from dummy data based on a person being sick
     7.5 <= x ! wbc <= 20 and
     18 <= x ! age <= 90 and
     50 <= x ! weight <= 100
 
 safeOutput : InputVector -> Bool
--- safeOutput x = let y = normpk x in 0 <= (x ! conc) + ((y ! 0)/30) <= 30
-safeOutput x = -1 <= (((normpk x) ! 0)/30) + (x ! conc) <= 60
-
+safeOutput x = 0 <= (((normpk x) ! 0)/(50*(50/70))) + (x ! conc) <= 40
 
 @property
 safe: Bool
 safe = forall x . safeInput x => safeOutput x
 
-@property
-valid: Bool
-valid = forall x. safeInput x => (0 <= (normpk x) ! 0 )
-
----------
-
 unhealthyInput : InputVector -> Bool
 unhealthyInput x = 
-    0 <= x ! conc <= 30 and
-    38 <= x ! temp <= 40 and -- temps from dummy data based on a person being sick
-    12 <= x ! wbc <= 20 and
+    0 <= x ! conc <= 40 and
+    37 <= x ! temp <= 40 and -- temps from dummy data based on a person being sick
+    8 <= x ! wbc <= 20 and
     18 <= x ! age <= 90 and
     50 <= x ! weight <= 100
 
@@ -68,28 +60,16 @@ unhealthy = forall x . unhealthyInput x => unhealthyOutput x
 
 healthyInput : InputVector -> Bool
 healthyInput x = 
-    0 <= x ! conc <= 30 and
-    36.5 <= x ! temp <= 38.0 and -- temps from dummy data based on a person being sick
+    0 <= x ! conc <= 40 and
+    36.5 <= x ! temp <= 37.0 and -- temps from dummy data based on a person being sick
     4 <= x ! wbc <= 8 and
     18 <= x ! age <= 90 and
     50 <= x ! weight <= 100
 
 healthyOutput : InputVector -> Bool
--- safeOutput x = let y = normpk x in 0 <= (x ! conc) + ((y ! 0)/30) <= 30
 healthyOutput x = (normpk x) ! 0  <= 1
 
 @property
 healthy: Bool
 healthy = forall x . healthyInput x => healthyOutput x
 
--------
-
-
-
-healthydirection : InputVector -> Real
--- safeOutput x = let y = normpk x in 0 <= (x ! conc) + ((y ! 0)/30) <= 30
-healthydirection x = let y = normpk x in (x ! temp) + 1 * (0.08 -0.005*((x ! conc) + ((y ! 0)/30)) - 0.12 * ((x ! temp) - 37 )) 
-
-@property
-healthydirectionhelp: Bool
-healthydirectionhelp = forall x. safeInput x => healthydirection x <= (x ! temp)
